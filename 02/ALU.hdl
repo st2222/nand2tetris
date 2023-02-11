@@ -42,35 +42,33 @@ CHIP ALU {
         ng; // 1 if (out < 0),  0 otherwise
 
     PARTS:
-   // Put you code here:
-   // zx
-   Mux16(a=x, b[0..15]=false, sel=zx, out=zxout);
+    //zx
+    Mux16(a=x, b[0..15]=false, sel=zx, out=zxout);
+    //nx
+    Not16(in=zxout, out=notx);
+    Mux16(a=zxout, b=notx, sel=nx, out=nxout);
 
-   // nx
-   Not16(in=zxout, out=negatezxout);
-   Mux16(a=zxout, b=negatezxout, sel=nx, out=nxout);
+    //zy
+    Mux16(a=y, b[0..15]=false, sel=zy, out=zyout);
+    //ny
+    Not16(in=zyout, out=noty);
+    Mux16(a=zyout, b=noty, sel=ny, out=nyout);
 
-   // zy
-   Mux16(a=y, b[0..15]=false, sel=zy, out=zyout);
-   
-   // ny
-   Not16(in=zyout, out=negatezyout);
-   Mux16(a=zyout, b=negatezyout, sel=ny, out=nyout);
-   
-   // f
-   And16(a=nxout, b=nyout, out=andout);
-   Add16(a=nxout, b=nyout, out=addout);
-   Mux16(a=andout, b=addout, sel=f, out=fout);
-   
-   // no
-   Not16(in=fout, out=negatefout);
-   Mux16(a=fout, b=negatefout, sel=no, out[0..7]=out1, out[8..15]=out2);
-   Mux16(a=fout, b=negatefout, sel=no, out=out);
+    //f
+    Add16(a=nxout, b=nyout, out=addresult);
+    And16(a=nxout, b=nyout, out=andresult);
+    Mux16(a=andresult, b=addresult, sel=f, out=calcout);
 
-   // zr / ng
-   Or8Way(in=out1, out=out1or);
-   Or8Way(in=out2, out=out2or);
-   Or(a=out1or, b=out2or, out=forzr);
-   Mux(a=true, b=false, sel=forzr, out=zr);
-   Mux16(a=fout, b=negatefout, sel=no, out[15]=ng);
+    //no
+    Not16(in=calcout, out=notcalcout);
+    Mux16(a=calcout, b=notcalcout, sel=no, out[0..7]=preout,out[15]=fugou, out[8..15]=postout, out=out);
+
+    //zr
+    Or8Way(in=preout, out=pre);
+    Or8Way(in=postout, out=post);
+    Or(a=pre, b=post, out=or);
+    Not(in=or, out=zr);
+
+    //ng
+    Mux(a=false, b=true, sel=fugou, out=ng);
 }
