@@ -16,8 +16,14 @@ CHIP PC {
     OUT out[16];
 
     PARTS:
-    Inc16(in=preout, out=incout1);
-    Mux16(a=preout, b[0..15]=incout1, sel=inc, out=incout2);
-    Mux4Way16(a=incout2, b=in, c[0..15]=false, d[0..15]=false, sel[0]=load, sel[1]=reset, out=w0);
-    Register(in=w0, load=true, out=preout, out=out);
+    ALU(x=regout, y[1..15]=false, y[0]=true, f=inc, out=aluout); 
+    Mux16(a=aluout, b[0..15]=false, sel=reset, out=resetout);
+    Mux8Way16(a=regout, b=aluout, c=in, d=in, e=resetout, f=resetout, g=resetout, h=resetout, sel[0]=inc, sel[1]=load, sel[2]=reset, out=eightwayout);
+    Register(in=eightwayout, load=true, out=regout, out=out);
+
+    //別解
+    // Inc16(in=regout, out=incout);
+    // Mux16(a=regout, b=incout, sel=inc, out=incornormal);
+    // Mux4Way16(a=incornormal, b=in, c[0..15]=false, d[0..15]=false, sel[0]=load, sel[1]=reset, out=selectedout);
+    // Register(in=selectedout, load=true, out=regout, out=out);
 }

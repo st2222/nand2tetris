@@ -16,6 +16,11 @@ CHIP RAM8 {
 
     PARTS:
     // Put your code here:
+    // RAM８なので、Registerを８個並べる
+    // loadビットが0の場合はどのレジスタを出力するかだけ
+    // loadビットが1の場合は、どのレジスタに書き込むかを考慮しないといけない
+    // つまり、loadビットを指定されたアドレスのレジスタに振り分ける(アドレスは３ビットなので、DMux8Wayでloadビットを振り分ける)
+    // 指定されたアドレスのレジスタの出力を返す(アドレスは３ビットなので、Mux8Way16で出力を絞る)
     DMux8Way(in=load, sel=address, a=a, b=b, c=c, d=d, e=e, f=f, g=g, h=h);
     Register(in=in, load=a, out=out1);
     Register(in=in, load=b, out=out2);
