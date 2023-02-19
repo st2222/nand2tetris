@@ -28,4 +28,25 @@ CHIP Memory {
 
     PARTS:
     // Put your code here:
+    // address[14]までがRAM16Kに対応16383まで　
+    // address[15]に値があった場合はKBDかSCREEN
+    // address[15]はマックス32768
+    // 24576より大きい値は無効
+    // SCREENは16384から24575まで
+    // KBDは24576
+    // if address[15] == 0 then RAM16K 
+    // else SCREEN or KBD or 無効
+    // if address in 16384..24575 then SCREEN //address[15][14] == 10
+    // else KBD or 無効
+    // if address == 24576 then KBD // address[15][14] == 11 and address[13..0] == 0
+    // else 無効
+
+    DMux4Way(in=load, sel[1]=address[14], sel[0]=address[13], a=ram1, b=ram2, c=screenflag, d=kbd);
+
+    RAM16K(in=in, load=ram1, address=address[0..13], out=ramout1);
+    RAM16K(in=in, load=ram2, address=address[0..13], out=ramout2);
+    Screen(in=in, load=screenflag, address=address[0..12], out=screenout);
+    Keyboard(out=kbdout);
+    Mux4Way16(a=ramout1, b=ramout2, c=screenout, d=kbdout, sel[1]=address[14], sel[0]=address[13], out=out);
+
 }

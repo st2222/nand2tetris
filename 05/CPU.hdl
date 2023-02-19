@@ -38,6 +38,101 @@ CHIP CPU {
         addressM[15],    // Address in data memory (of M)
         pc[15];          // address of next instruction
 
+    // 流れ的には、
+    // 命令のデコード（解読）
+    //     制御ビットへ分割する。
+    //     A命令かC命令か。
+    // 命令の実行
+    //     A命令ならAレジスタに15ビットを格納
+    //     C命令なら計算したり計算結果を格納したりジャンプするか判定したり
+    // 次の命令のフェッチ
+    //     通常はプログラムカウンタをインクリメント(PC(t-1)+1)する。ジャンプする判定ならAレジスタに格納されている値をプログラムカウンタに入れる。
+    //     プログラムカウンタの値がアドレスの命令アドレスを入力として受け取る
+    // 命令のデコードと続く・・・・・・・・・・・・・・
     PARTS:
-    // Put your code here:
+
+    // ============== デコード ===========================
+    // まず命令の先頭ビットのiを見てA命令かC命令かを特定する. 0: A, 1: C
+    // i xx a cccccc ddd jjj
+    DMux(in=true, sel=instruction[15], a=ains, b=cins);
+
+    // ============== 命令の実行 ===========================
+    // A命令ならAレジスタに15ビットを格納
+    // C命令ならacビットがcomp領域(関数を計算)、dビットがdest領域(計算結果を保存する)、jビットがジャンプ領域(次に何を行うか)
+    // compのどのビットがALUのどのビットに対応しているかを考える
+    // クロックを意識しないといけない. loadした値が出力されるのは次のクロック周期
+    // フィードバックループの観点を考える
+
+    // C命令かつAレジスタに値を格納するか。ex) A=D
+    And(a=instruction[5], b=cins, out=aregflag);
+
+    // A命令なら命令コードを、C命令ならALUの出力を選ぶ
+    Mux16(a=aluout, b[0..14]=instruction[0..14], sel=ains, out=aregin);
+
+    // A命令もしくは、C命令でAレジスタに値を格納するかのどちらかであるか
+    Or(a=ains, b=aregflag, out=areginflag);
+
+    // どちらかであるなら、Aレジスタにどちらかの値を格納する 
+    ARegister(in=aregin, load=areginflag, out[0..14]=addressM, out=aregout);
+
+    // A命令とC命令の分岐はどうするか？そもそも必要あるか？A命令の場合は書き込んで終了のはず
+    //     Aレジスタに書き込む際に決定する↑
+    //     Aレジスタに値を格納するパターンは２パターンある。
+    //     一つはA命令、もう一つはC命令のAレジスタに書き込む
+    // これ以降はC命令の実装
+    // 命令の計算でAレジスタの値を使うかメモリ(M)の値を使うかを判定
+    Mux16(a=aregout, b=inM, sel=instruction[12], out=aorm);
+
+    // ALUの出力を次のクロック周期で格納し、今のDレジスタの値を出力する
+    DRegister(in=aluout, load=instruction[4], out=cdregout);
+
+    // C命令のcomp領域を実行
+    // Aレジスタの値もしくはメモリの値とDレジスタの値をALUに入力する
+    // 以下がそれぞれC命令のcomp領域とALUの入力の対応関係(zx=c1, nx=c2, zy=c3, ny=c4, f=c5, no=c6)
+    // zrとngの出力はjump領域の条件判定に使用する
+    ALU(x=cdregout, y=aorm, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=aluout, out=outM, zr=zr, ng=ng);
+
+    // メモリに書き込むフラグが立っているならメモリに書き込むための出力をする
+    And(a=instruction[3], b=cins, out=mflag);
+    Mux(a=false, b=true, sel=mflag, out=writeM);
+
+    // ============== 命令のフェッチ ===========================
+    // ジャンプ領域のビットを見る
+    // mux的なやつで８通り分岐させる
+    //    それぞれでALUの出力結果を見て、ジャンプする条件を決定する
+    //    ALUの出力(zr, ng)を見てジャンプする条件を満たすか確認する
+    //    満たす場合Aレジスタをプログラムカウンタに入力する(no jumpの時はインクリメントするだけ)
+
+    DMux8Way(in=true, sel[2]=instruction[2], sel[1]=instruction[1], sel[0]=instruction[0], a=nojmp, b=jgt, c=jeq, d=jge, e=jlt, f=jne, g=jle, h=jmp);
+
+    // どのジャンプ命令かを確定する
+    // JGT
+    Or(a=zr, b=ng, out=zrngor);
+    Not(in=zrngor, out=notzrngor);
+    And(a=jgt, b=notzrngor, out=JGT);
+
+    // JEQ
+    And(a=jeq, b=zr, out=JEQ);
+    // JGE
+    Not(in=ng, out=notng);
+    And(a=jge, b=notng, out=JGE);
+
+    // JLT
+    Not(in=zr, out=notzr);
+    And(a=notzr, b=ng, out=notzrngand);
+    And(a=jlt, b=notzrngand, out=JLT);
+
+    // JNE
+    And(a=jne, b=notzr, out=JNE);
+    
+    // JLE == zr or ng 
+    And(a=jle, b=zrngor, out=JLE);
+
+    // ジャンプするかどうか
+    Or8Way(in[0]=false, in[1]=JGT,  in[2]=JEQ,  in[3]=JGE,  in[4]=JLT,  in[5]=JNE,  in[6]=JLE, in[7]=jmp, out=jmpout);
+    And(a=jmpout, b=cins, out=outforpc);
+    Not(in=outforpc, out=notoutforpc);
+
+    // プログラムカウンタに値を入力
+    PC(in=aregout, reset=reset, load=outforpc, inc=notoutforpc, out[0..14]=pc);
 }
