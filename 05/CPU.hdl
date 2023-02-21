@@ -84,7 +84,8 @@ CHIP CPU {
     Mux16(a=aregout, b=inM, sel=instruction[12], out=aorm);
 
     // ALUの出力を次のクロック周期で格納し、今のDレジスタの値を出力する
-    DRegister(in=aluout, load=instruction[4], out=cdregout);
+    And(a=instruction[4], b=cins, out=dflag);
+    DRegister(in=aluout, load=dflag, out=cdregout);
 
     // C命令のcomp領域を実行
     // Aレジスタの値もしくはメモリの値とDレジスタの値をALUに入力する
